@@ -1,0 +1,31 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const __wbg_ggsqlcontext_free: (a: number, b: number) => void;
+export const ggsqlcontext_execute: (a: number, b: number, c: number, d: number) => void;
+export const ggsqlcontext_execute_sql: (a: number, b: number, c: number, d: number) => void;
+export const ggsqlcontext_has_visual: (a: number, b: number, c: number) => number;
+export const ggsqlcontext_list_tables: (a: number) => number;
+export const ggsqlcontext_new: (a: number) => void;
+export const ggsqlcontext_register_builtin_datasets: (a: number) => number;
+export const ggsqlcontext_register_csv: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+export const ggsqlcontext_register_parquet: (a: number, b: number, c: number, d: number, e: number) => number;
+export const ggsqlcontext_unregister: (a: number, b: number, c: number, d: number) => void;
+export const rust_sqlite_wasm_abort: () => void;
+export const rust_sqlite_wasm_assert_fail: (a: number, b: number, c: number, d: number) => void;
+export const rust_sqlite_wasm_calloc: (a: number, b: number) => number;
+export const rust_sqlite_wasm_malloc: (a: number) => number;
+export const rust_sqlite_wasm_free: (a: number) => void;
+export const rust_sqlite_wasm_getentropy: (a: number, b: number) => number;
+export const rust_sqlite_wasm_localtime: (a: number) => number;
+export const rust_sqlite_wasm_realloc: (a: number, b: number) => number;
+export const sqlite3_os_end: () => number;
+export const sqlite3_os_init: () => number;
+export const __wasm_bindgen_func_elem_2732: (a: number, b: number, c: number, d: number) => void;
+export const __wasm_bindgen_func_elem_2795: (a: number, b: number, c: number, d: number) => void;
+export const __wbindgen_export: (a: number, b: number) => number;
+export const __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_export3: (a: number) => void;
+export const __wbindgen_export4: (a: number, b: number) => void;
+export const __wbindgen_add_to_stack_pointer: (a: number) => number;
+export const __wbindgen_export5: (a: number, b: number, c: number) => void;

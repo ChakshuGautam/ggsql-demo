@@ -1,0 +1,26 @@
+{
+  "name": "ggsql-wasm",
+  "type": "module",
+  "collaborators": [
+    "ggsql Team"
+  ],
+  "description": "WebAssembly bindings for ggsql.",
+  "version": "0.2.7",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/posit-dev/ggsql"
+  },
+  "files": [
+    "ggsql_wasm_bg.wasm",
+    "ggsql_wasm.js",
+    "ggsql_wasm.d.ts",
+    "snippets"
+  ],
+  "main": "ggsql_wasm.js",
+  "homepage": "https://ggsql.org",
+  "types": "ggsql_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
