@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       ggsql-wasm:
-        specifier: file:/root/repos/ggsql/ggsql-wasm/pkg
+        specifier: file:../ggsql/ggsql-wasm/pkg
         version: file:../ggsql/ggsql-wasm/pkg
       react:
         specifier: ^19.2.5

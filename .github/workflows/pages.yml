@@ -1,0 +1,83 @@
+name: Deploy to GitHub Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# Full build from source: Rust + clang build ggsql-wasm, then Vite builds the SPA.
+# ~7 minutes cold, ~3 minutes with cargo cache.
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-unknown-unknown
+
+      - name: Install apt deps (clang, lld, llvm, binaryen)
+        run: sudo apt-get update && sudo apt-get install -y clang lld llvm binaryen
+
+      - name: Install wasm-pack + tree-sitter-cli
+        run: |
+          curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+          npm i -g tree-sitter-cli
+
+      - name: Clone and build ggsql-wasm
+        run: |
+          git clone --depth 1 https://github.com/posit-dev/ggsql.git /tmp/ggsql
+          cd /tmp/ggsql
+          # Upstream lists ggsql-python in workspace.members but the dir is missing
+          sed -i '/"ggsql-python",/d' Cargo.toml
+          (cd ggsql-wasm/library && npm install && npm run build)
+          cd ggsql-wasm
+          AR_wasm32_unknown_unknown=/usr/bin/llvm-ar \
+          CC_wasm32_unknown_unknown=/usr/bin/clang \
+            wasm-pack build --target web --profile wasm --no-opt
+          node -e "const f='pkg/package.json';const j=JSON.parse(require('fs').readFileSync(f,'utf8'));if(!j.files.includes('snippets'))j.files.push('snippets');require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+
+      - name: Install app deps (linking /tmp/ggsql/ggsql-wasm/pkg)
+        run: |
+          # Replace the "file:../ggsql/ggsql-wasm/pkg" path to point at /tmp build
+          node -e "const f='package.json';const j=JSON.parse(require('fs').readFileSync(f,'utf8'));j.dependencies['ggsql-wasm']='file:/tmp/ggsql/ggsql-wasm/pkg';require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+          pnpm install --no-frozen-lockfile
+
+      - name: Build SPA (Vite)
+        env:
+          VITE_BASE: /ggsql-demo/
+        run: pnpm build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
