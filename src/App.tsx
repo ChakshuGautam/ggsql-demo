@@ -1,38 +1,49 @@
 import { useEffect, useState } from "react";
 import { Chart } from "./components/Chart";
-import { TableView } from "./components/TableView";
+import { DuckEditor } from "./components/DuckEditor";
+import { DuckTable } from "./components/DuckTable";
 import { initGgsql, type Ggsql } from "./ggsql";
+import { initDuck, type Duck } from "./duckdb";
 import { EDITOR_DEFAULT, PRESETS } from "./queries";
 import { EXTRA_DATASETS } from "./datasets";
 import "./App.css";
 
-type Tab = "dashboard" | "tables" | "editor" | "playground";
+type Tab = "dashboard" | "tables" | "sql" | "ggsql";
 
 export default function App() {
   const [ggsql, setGgsql] = useState<Ggsql | null>(null);
+  const [duck, setDuck] = useState<Duck | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("dashboard");
   const [query, setQuery] = useState(EDITOR_DEFAULT);
-  const [tables, setTables] = useState<string[]>([]);
+  const [ggsqlTables, setGgsqlTables] = useState<string[]>([]);
+  const [duckTables, setDuckTables] = useState<string[]>([]);
 
   useEffect(() => {
-    const onDataset = () => {
-      // Ggsql instance updates its internal state; refresh the list.
+    initGgsql(undefined, () => {
       setGgsql((cur) => {
-        if (!cur) return cur;
-        setTables(cur.listTables());
+        if (cur) setGgsqlTables(cur.listTables());
         return cur;
       });
-    };
-    initGgsql(undefined, onDataset)
+    })
       .then((g) => {
         setGgsql(g);
-        setTables(g.listTables());
+        setGgsqlTables(g.listTables());
       })
       .catch((e) => setInitError(String(e.message ?? e)));
-  }, []);
 
-  const ready = ggsql !== null;
+    initDuck(() => {
+      setDuck((cur) => {
+        if (cur) setDuckTables(cur.listTables());
+        return cur;
+      });
+    })
+      .then((d) => {
+        setDuck(d);
+        setDuckTables(d.listTables());
+      })
+      .catch((e) => setInitError((prev) => prev ?? String(e.message ?? e)));
+  }, []);
 
   return (
     <div className="app">
@@ -51,52 +62,69 @@ export default function App() {
           </h1>
         </div>
         <nav className="tabs">
-          <button
-            className={tab === "dashboard" ? "tab active" : "tab"}
-            onClick={() => setTab("dashboard")}
-          >
+          <Tab t="dashboard" cur={tab} set={setTab}>
             Dashboard
-          </button>
-          <button
-            className={tab === "tables" ? "tab active" : "tab"}
-            onClick={() => setTab("tables")}
-          >
+          </Tab>
+          <Tab t="tables" cur={tab} set={setTab}>
             Tables
-          </button>
-          <button
-            className={tab === "editor" ? "tab active" : "tab"}
-            onClick={() => setTab("editor")}
-          >
-            Editor
-          </button>
-          <button
-            className={tab === "playground" ? "tab active" : "tab"}
-            onClick={() => setTab("playground")}
-          >
-            Playground
-          </button>
+          </Tab>
+          <Tab t="sql" cur={tab} set={setTab}>
+            SQL (DuckDB)
+          </Tab>
+          <Tab t="ggsql" cur={tab} set={setTab}>
+            ggsql (viz)
+          </Tab>
         </nav>
       </header>
 
       <main className="app-main">
         {initError && <p className="chart-error">init failed: {initError}</p>}
-        {!ready && !initError && (
+        {tab === "dashboard" && ggsql && (
+          <Dashboard ggsql={ggsql} tables={ggsqlTables} />
+        )}
+        {tab === "tables" && duck && (
+          <Tables duck={duck} names={duckTables} />
+        )}
+        {tab === "sql" &&
+          (duck ? (
+            <DuckEditor duck={duck} />
+          ) : (
+            <p className="loading-msg">Spinning up DuckDB-WASM…</p>
+          ))}
+        {tab === "ggsql" &&
+          (ggsql ? (
+            <Editor ggsql={ggsql} query={query} setQuery={setQuery} />
+          ) : (
+            <p className="loading-msg">Loading ggsql-wasm…</p>
+          ))}
+        {!ggsql && !initError && tab !== "sql" && tab !== "ggsql" && (
           <p className="loading-msg">
-            Loading WebAssembly module… first paint can take a few seconds.
+            Loading WebAssembly modules (ggsql + DuckDB)… first paint takes a few seconds.
           </p>
         )}
-        {tab === "dashboard" && ready && (
-          <Dashboard ggsql={ggsql!} tables={tables} />
-        )}
-        {tab === "tables" && ready && (
-          <Tables ggsql={ggsql!} names={tables} />
-        )}
-        {tab === "editor" && ready && (
-          <Editor ggsql={ggsql!} query={query} setQuery={setQuery} />
-        )}
-        {tab === "playground" && <Playground />}
       </main>
     </div>
+  );
+}
+
+function Tab({
+  t,
+  cur,
+  set,
+  children,
+}: {
+  t: Tab;
+  cur: Tab;
+  set: (t: Tab) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      className={cur === t ? "tab active" : "tab"}
+      onClick={() => set(t)}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -132,86 +160,50 @@ function Dashboard({ ggsql, tables }: { ggsql: Ggsql; tables: string[] }) {
   );
 }
 
-function Tables({ ggsql, names }: { ggsql: Ggsql; names: string[] }) {
-  const [selected, setSelected] = useState<string>(names[0] ?? "");
+function Tables({ duck, names }: { duck: Duck; names: string[] }) {
+  const [selected, setSelected] = useState<string>("");
   useEffect(() => {
     if (!selected && names.length > 0) setSelected(names[0]);
   }, [names, selected]);
-  if (names.length === 0) return <p>No tables registered.</p>;
 
   const extraMap = new Map(EXTRA_DATASETS.map((d) => [d.name, d]));
-  const builtins = names.filter((n) => n.startsWith("ggsql:"));
-  const extras = names.filter((n) => !n.startsWith("ggsql:"));
-  const pendingExtras = EXTRA_DATASETS.filter(
-    (d) => !names.includes(d.name),
-  );
-
-  const renderItem = (n: string) => {
-    const extra = extraMap.get(n);
-    const label = extra?.label ?? n;
-    return (
-      <li key={n}>
-        <button
-          className={selected === n ? "table-link active" : "table-link"}
-          onClick={() => setSelected(n)}
-          title={extra?.description}
-        >
-          <span className="table-link-label">{label}</span>
-          <span className="table-link-id">{n}</span>
-        </button>
-      </li>
-    );
-  };
+  const pending = EXTRA_DATASETS.filter((d) => !names.includes(d.name));
 
   return (
     <section className="tables-view">
       <aside className="tables-sidebar">
-        <h3>Builtin (ggsql)</h3>
-        <ul>{builtins.map(renderItem)}</ul>
-        {(extras.length > 0 || pendingExtras.length > 0) && (
-          <>
-            <h3>Open datasets</h3>
-            <ul>
-              {extras.map(renderItem)}
-              {pendingExtras.map((d) => (
-                <li key={d.name}>
-                  <button className="table-link loading" disabled>
-                    <span className="table-link-label">{d.label}</span>
-                    <span className="table-link-id">loading…</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+        <h3>DuckDB tables</h3>
+        <ul>
+          {names.map((n) => {
+            const extra = extraMap.get(n);
+            return (
+              <li key={n}>
+                <button
+                  className={selected === n ? "table-link active" : "table-link"}
+                  onClick={() => setSelected(n)}
+                  title={extra?.description}
+                >
+                  <span className="table-link-label">
+                    {extra?.label ?? n}
+                  </span>
+                  <span className="table-link-id">{n}</span>
+                </button>
+              </li>
+            );
+          })}
+          {pending.map((d) => (
+            <li key={d.name}>
+              <button className="table-link loading" disabled>
+                <span className="table-link-label">{d.label}</span>
+                <span className="table-link-id">loading…</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       </aside>
       <div className="tables-main">
-        {selected && <TableView ggsql={ggsql} name={selected} />}
+        {selected && <DuckTable duck={duck} name={selected} />}
       </div>
-    </section>
-  );
-}
-
-function Playground() {
-  const src = "https://ggsql.org/wasm/";
-  return (
-    <section className="playground">
-      <div className="playground-bar">
-        <span>
-          Official ggsql playground —{" "}
-          <a href={src} target="_blank" rel="noreferrer">
-            ggsql.org/wasm
-          </a>
-        </span>
-        <a className="btn" href={src} target="_blank" rel="noreferrer">
-          Open in new tab ↗
-        </a>
-      </div>
-      <iframe
-        src={src}
-        title="ggsql playground (ggsql.org/wasm)"
-        className="playground-frame"
-      />
     </section>
   );
 }
@@ -229,7 +221,7 @@ function Editor({
     <section className="editor">
       <div className="editor-pane">
         <div className="editor-toolbar">
-          <strong>ggsql</strong>
+          <strong>ggsql · VISUALIZE</strong>
           <button className="btn" onClick={() => setQuery(EDITOR_DEFAULT)}>
             Reset to example
           </button>
