@@ -41,10 +41,12 @@ jobs:
 
       - name: Install wasm-pack + tree-sitter-cli
         run: |
-          curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+          cargo install wasm-pack --version 0.14.0 --locked
           npm i -g tree-sitter-cli
 
       - name: Clone and build ggsql-wasm
+        env:
+          RUSTFLAGS: ""
         run: |
           git clone --depth 1 https://github.com/posit-dev/ggsql.git /tmp/ggsql
           cd /tmp/ggsql
