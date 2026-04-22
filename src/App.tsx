@@ -3,9 +3,10 @@ import { Chart } from "./components/Chart";
 import { TableView } from "./components/TableView";
 import { initGgsql, type Ggsql } from "./ggsql";
 import { EDITOR_DEFAULT, PRESETS } from "./queries";
+import { EXTRA_DATASETS } from "./datasets";
 import "./App.css";
 
-type Tab = "dashboard" | "tables" | "editor";
+type Tab = "dashboard" | "tables" | "editor" | "playground";
 
 export default function App() {
   const [ggsql, setGgsql] = useState<Ggsql | null>(null);
@@ -15,7 +16,15 @@ export default function App() {
   const [tables, setTables] = useState<string[]>([]);
 
   useEffect(() => {
-    initGgsql()
+    const onDataset = () => {
+      // Ggsql instance updates its internal state; refresh the list.
+      setGgsql((cur) => {
+        if (!cur) return cur;
+        setTables(cur.listTables());
+        return cur;
+      });
+    };
+    initGgsql(undefined, onDataset)
       .then((g) => {
         setGgsql(g);
         setTables(g.listTables());
@@ -60,6 +69,12 @@ export default function App() {
           >
             Editor
           </button>
+          <button
+            className={tab === "playground" ? "tab active" : "tab"}
+            onClick={() => setTab("playground")}
+          >
+            Playground
+          </button>
         </nav>
       </header>
 
@@ -70,35 +85,48 @@ export default function App() {
             Loading WebAssembly module… first paint can take a few seconds.
           </p>
         )}
-        {tab === "dashboard" && ready && <Dashboard ggsql={ggsql!} />}
+        {tab === "dashboard" && ready && (
+          <Dashboard ggsql={ggsql!} tables={tables} />
+        )}
         {tab === "tables" && ready && (
           <Tables ggsql={ggsql!} names={tables} />
         )}
         {tab === "editor" && ready && (
           <Editor ggsql={ggsql!} query={query} setQuery={setQuery} />
         )}
+        {tab === "playground" && <Playground />}
       </main>
     </div>
   );
 }
 
-function Dashboard({ ggsql }: { ggsql: Ggsql }) {
+function Dashboard({ ggsql, tables }: { ggsql: Ggsql; tables: string[] }) {
+  const present = new Set(tables);
   return (
     <section className="dashboard">
       <div className="grid">
-        {PRESETS.map((p) => (
-          <div key={p.title} className="panel">
-            <div className="panel-header">
-              <h3>{p.title}</h3>
-              <p>{p.description}</p>
+        {PRESETS.map((p) => {
+          const missing = (p.requires ?? []).filter((t) => !present.has(t));
+          return (
+            <div key={p.title} className="panel">
+              <div className="panel-header">
+                <h3>{p.title}</h3>
+                <p>{p.description}</p>
+              </div>
+              {missing.length === 0 ? (
+                <Chart ggsql={ggsql} query={p.query} height={300} />
+              ) : (
+                <div className="chart loading">
+                  Loading dataset: <code>{missing.join(", ")}</code>…
+                </div>
+              )}
+              <details>
+                <summary>Query</summary>
+                <pre>{p.query}</pre>
+              </details>
             </div>
-            <Chart ggsql={ggsql} query={p.query} height={300} />
-            <details>
-              <summary>Query</summary>
-              <pre>{p.query}</pre>
-            </details>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -106,27 +134,84 @@ function Dashboard({ ggsql }: { ggsql: Ggsql }) {
 
 function Tables({ ggsql, names }: { ggsql: Ggsql; names: string[] }) {
   const [selected, setSelected] = useState<string>(names[0] ?? "");
+  useEffect(() => {
+    if (!selected && names.length > 0) setSelected(names[0]);
+  }, [names, selected]);
   if (names.length === 0) return <p>No tables registered.</p>;
+
+  const extraMap = new Map(EXTRA_DATASETS.map((d) => [d.name, d]));
+  const builtins = names.filter((n) => n.startsWith("ggsql:"));
+  const extras = names.filter((n) => !n.startsWith("ggsql:"));
+  const pendingExtras = EXTRA_DATASETS.filter(
+    (d) => !names.includes(d.name),
+  );
+
+  const renderItem = (n: string) => {
+    const extra = extraMap.get(n);
+    const label = extra?.label ?? n;
+    return (
+      <li key={n}>
+        <button
+          className={selected === n ? "table-link active" : "table-link"}
+          onClick={() => setSelected(n)}
+          title={extra?.description}
+        >
+          <span className="table-link-label">{label}</span>
+          <span className="table-link-id">{n}</span>
+        </button>
+      </li>
+    );
+  };
+
   return (
     <section className="tables-view">
       <aside className="tables-sidebar">
-        <h3>Registered tables</h3>
-        <ul>
-          {names.map((n) => (
-            <li key={n}>
-              <button
-                className={selected === n ? "table-link active" : "table-link"}
-                onClick={() => setSelected(n)}
-              >
-                {n}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <h3>Builtin (ggsql)</h3>
+        <ul>{builtins.map(renderItem)}</ul>
+        {(extras.length > 0 || pendingExtras.length > 0) && (
+          <>
+            <h3>Open datasets</h3>
+            <ul>
+              {extras.map(renderItem)}
+              {pendingExtras.map((d) => (
+                <li key={d.name}>
+                  <button className="table-link loading" disabled>
+                    <span className="table-link-label">{d.label}</span>
+                    <span className="table-link-id">loading…</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </aside>
       <div className="tables-main">
         {selected && <TableView ggsql={ggsql} name={selected} />}
       </div>
+    </section>
+  );
+}
+
+function Playground() {
+  const src = "https://ggsql.org/wasm/";
+  return (
+    <section className="playground">
+      <div className="playground-bar">
+        <span>
+          Official ggsql playground —{" "}
+          <a href={src} target="_blank" rel="noreferrer">
+            ggsql.org/wasm
+          </a>
+        </span>
+        <a className="btn" href={src} target="_blank" rel="noreferrer">
+          Open in new tab ↗
+        </a>
+      </div>
+      <iframe
+        src={src}
+        title="ggsql playground (ggsql.org/wasm)"
+        className="playground-frame"
+      />
     </section>
   );
 }

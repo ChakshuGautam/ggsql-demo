@@ -2,32 +2,54 @@ export interface PresetQuery {
   title: string;
   description: string;
   query: string;
+  /** Tables this preset reads from. Used to wait for async-loaded datasets. */
+  requires?: string[];
 }
 
 export const PRESETS: PresetQuery[] = [
   {
-    title: "Scatter + smooth (bill depth vs length)",
-    description: "Continuous × continuous, colored by species, with a smoothed trendline.",
+    title: "Penguins — bill depth vs length",
+    description: "Classic palmer-penguins scatter, coloured by species with a smoothed trendline.",
+    requires: ["ggsql:penguins"],
     query: `VISUALIZE bill_len AS x, bill_dep AS y, species AS color FROM ggsql:penguins
 DRAW point
 DRAW smooth`,
   },
   {
-    title: "Bar chart (species by island)",
-    description: "Categorical × count, stacked by species across the three islands.",
-    query: `VISUALIZE island AS x, species AS color FROM ggsql:penguins
-DRAW bar`,
+    title: "Cars — MPG vs horsepower",
+    description: "1970s–'80s cars — more horsepower, worse fuel economy. Colour by origin.",
+    requires: ["cars"],
+    query: `VISUALIZE Horsepower AS x, Miles_per_Gallon AS y, Origin AS color FROM cars
+DRAW point
+DRAW smooth`,
   },
   {
-    title: "Boxplot (body mass by species)",
-    description: "Distribution of body mass within each species.",
-    query: `VISUALIZE species AS x, body_mass AS y FROM ggsql:penguins
-DRAW boxplot`,
+    title: "Seattle weather — daily max temp",
+    description: "Daily maximum temperature in Seattle 2012–2015, coloured by weather category.",
+    requires: ["seattle_weather"],
+    query: `VISUALIZE date AS x, temp_max AS y, weather AS color FROM seattle_weather
+DRAW point`,
   },
   {
-    title: "Histogram (flipper length)",
-    description: "Distribution of flipper length across all penguins.",
-    query: `VISUALIZE flipper_len AS x FROM ggsql:penguins
+    title: "S&P 500 — monthly closes",
+    description: "S&P 500 monthly closing price, 2000–2010.",
+    requires: ["sp500"],
+    query: `VISUALIZE date AS x, price AS y FROM sp500
+DRAW line`,
+  },
+  {
+    title: "Gapminder — life expectancy over time",
+    description: "Life expectancy by country, 1952–2007. One line per country, coloured by cluster.",
+    requires: ["gapminder"],
+    query: `VISUALIZE year AS x, life_expect AS y, cluster AS color FROM gapminder
+DRAW line
+  PARTITION BY country`,
+  },
+  {
+    title: "Flights — delay distribution",
+    description: "Departure delay across 5 000 US flights.",
+    requires: ["flights_airport"],
+    query: `VISUALIZE delay AS x FROM flights_airport
 DRAW histogram`,
   },
 ];

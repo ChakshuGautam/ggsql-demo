@@ -1,4 +1,5 @@
 import init, { GgsqlContext } from "ggsql-wasm";
+import { EXTRA_DATASETS, fetchAsCsv } from "../datasets";
 
 export interface SqlResult {
   columns: string[];
@@ -9,7 +10,16 @@ export interface SqlResult {
 
 let initPromise: Promise<Ggsql> | null = null;
 
-export function initGgsql(wasmUrl?: string): Promise<Ggsql> {
+export interface DatasetLoadEvent {
+  name: string;
+  status: "loading" | "ready" | "error";
+  error?: string;
+}
+
+export function initGgsql(
+  wasmUrl?: string,
+  onDataset?: (e: DatasetLoadEvent) => void,
+): Promise<Ggsql> {
   if (!initPromise) {
     initPromise = (async () => {
       // When wasmUrl is omitted, wasm-bindgen resolves
@@ -18,7 +28,27 @@ export function initGgsql(wasmUrl?: string): Promise<Ggsql> {
       await init(wasmUrl);
       const ctx = new GgsqlContext();
       await ctx.register_builtin_datasets();
-      return new Ggsql(ctx);
+      const g = new Ggsql(ctx);
+
+      // Fetch and register extra OSS datasets in the background. Failures are
+      // non-fatal so the app is still usable on a flaky network.
+      for (const d of EXTRA_DATASETS) {
+        onDataset?.({ name: d.name, status: "loading" });
+        fetchAsCsv(d)
+          .then((bytes) => {
+            g.registerCsv(d.name, bytes);
+            onDataset?.({ name: d.name, status: "ready" });
+          })
+          .catch((e: unknown) => {
+            onDataset?.({
+              name: d.name,
+              status: "error",
+              error: String((e as Error).message ?? e),
+            });
+          });
+      }
+
+      return g;
     })();
   }
   return initPromise;
