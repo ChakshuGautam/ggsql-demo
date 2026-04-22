@@ -15,6 +15,10 @@ dist-ssr
 # wasm artifact copied from ../ggsql/ggsql-wasm/pkg/ by scripts/copy-wasm.mjs
 public/ggsql_wasm_bg.wasm
 
+# vendored ggsql-wasm pkg must be tracked (overrides the "dist" rule above
+# matching vendor/ggsql-wasm/snippets/.../library/dist/)
+!vendor/**
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
