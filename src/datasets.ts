@@ -43,7 +43,7 @@ export const EXTRA_DATASETS: ExtraDataset[] = [
     name: "flights_airport",
     label: "US flights (5k sample)",
     format: "csv",
-    url: `${CDN}/flights-5k.csv`,
+    url: `${CDN}/flights-5k.json`,
     rows: 5000,
     description:
       "5 000 random flights — delay, distance, origin, destination, carrier.",
