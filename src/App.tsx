@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { Chart } from "./components/Chart";
+import { TableView } from "./components/TableView";
 import { initGgsql, type Ggsql } from "./ggsql";
 import { EDITOR_DEFAULT, PRESETS } from "./queries";
 import "./App.css";
 
-type Tab = "dashboard" | "editor";
-
-const GGSQL_VERSION = "0.2.7";
+type Tab = "dashboard" | "tables" | "editor";
 
 export default function App() {
   const [ggsql, setGgsql] = useState<Ggsql | null>(null);
@@ -31,7 +30,6 @@ export default function App() {
       <header className="app-header">
         <div className="title">
           <h1>ggsql browser</h1>
-          <span className="badge">ggsql {GGSQL_VERSION} · SQLite-WASM</span>
         </div>
         <nav className="tabs">
           <button
@@ -41,39 +39,35 @@ export default function App() {
             Dashboard
           </button>
           <button
+            className={tab === "tables" ? "tab active" : "tab"}
+            onClick={() => setTab("tables")}
+          >
+            Tables
+          </button>
+          <button
             className={tab === "editor" ? "tab active" : "tab"}
             onClick={() => setTab("editor")}
           >
             Editor
           </button>
         </nav>
-        <div className={ready ? "status ready" : "status loading"}>
-          {initError
-            ? `init failed: ${initError}`
-            : ready
-              ? `Ready · tables: ${tables.join(", ")}`
-              : "Loading ggsql-wasm…"}
-        </div>
       </header>
 
       <main className="app-main">
-        {tab === "dashboard" && ready && <Dashboard ggsql={ggsql!} />}
-        {tab === "editor" && ready && (
-          <Editor ggsql={ggsql!} query={query} setQuery={setQuery} />
-        )}
+        {initError && <p className="chart-error">init failed: {initError}</p>}
         {!ready && !initError && (
           <p className="loading-msg">
             Loading WebAssembly module… first paint can take a few seconds.
           </p>
         )}
+        {tab === "dashboard" && ready && <Dashboard ggsql={ggsql!} />}
+        {tab === "tables" && ready && (
+          <Tables ggsql={ggsql!} names={tables} />
+        )}
+        {tab === "editor" && ready && (
+          <Editor ggsql={ggsql!} query={query} setQuery={setQuery} />
+        )}
       </main>
-
-      <footer className="app-footer">
-        Fully client-side · ggsql-wasm built from source · no backend ·{" "}
-        <a href="https://ggsql.org" target="_blank" rel="noreferrer">
-          ggsql.org
-        </a>
-      </footer>
     </div>
   );
 }
@@ -81,11 +75,6 @@ export default function App() {
 function Dashboard({ ggsql }: { ggsql: Ggsql }) {
   return (
     <section className="dashboard">
-      <h2>Penguins — 4 perspectives</h2>
-      <p className="sub">
-        Data: <code>ggsql:penguins</code> (builtin). Four ggsql queries on the
-        same dataset.
-      </p>
       <div className="grid">
         {PRESETS.map((p) => (
           <div key={p.title} className="panel">
@@ -100,6 +89,33 @@ function Dashboard({ ggsql }: { ggsql: Ggsql }) {
             </details>
           </div>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function Tables({ ggsql, names }: { ggsql: Ggsql; names: string[] }) {
+  const [selected, setSelected] = useState<string>(names[0] ?? "");
+  if (names.length === 0) return <p>No tables registered.</p>;
+  return (
+    <section className="tables-view">
+      <aside className="tables-sidebar">
+        <h3>Registered tables</h3>
+        <ul>
+          {names.map((n) => (
+            <li key={n}>
+              <button
+                className={selected === n ? "table-link active" : "table-link"}
+                onClick={() => setSelected(n)}
+              >
+                {n}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </aside>
+      <div className="tables-main">
+        {selected && <TableView ggsql={ggsql} name={selected} />}
       </div>
     </section>
   );
