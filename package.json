@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "ggsql-wasm": "file:../ggsql/ggsql-wasm/pkg",
+    "ggsql-wasm": "file:./vendor/ggsql-wasm",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "vega": "^6.2.0",

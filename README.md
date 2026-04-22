@@ -31,9 +31,11 @@ Phase 0 findings that drove this decision.
 
 ## Running locally
 
-This app depends on a locally-built `ggsql-wasm` package at
-`../ggsql/ggsql-wasm/pkg/`. You have to build ggsql-wasm from source: there
-is no published npm package.
+A prebuilt `ggsql-wasm` package is vendored at `vendor/ggsql-wasm/`
+(~12 MB). `pnpm install && pnpm dev` just works — no Rust toolchain
+required for day-to-day development.
+
+To rebuild the vendored wasm from scratch, follow the section below.
 
 ### Prereqs
 
@@ -47,7 +49,7 @@ is no published npm package.
 
 Verify: `echo "int main(){return 0;}" | clang -target wasm32-unknown-unknown -c -o /dev/null -x c -`
 
-### Build ggsql-wasm
+### Rebuild ggsql-wasm (optional)
 
 ```bash
 cd ..
@@ -75,7 +77,15 @@ wasm-opt --enable-nontrapping-float-to-int --enable-bulk-memory \
 # Upstream's package.json omits `snippets/` from the `files` list — add it,
 # otherwise pnpm won't copy the JS helper into node_modules.
 # Edit ggsql-wasm/pkg/package.json and add "snippets" to the "files" array.
+
+# Finally, replace the vendored copy:
+rm -rf ../../ggsql-browser/vendor/ggsql-wasm
+cp -r pkg/. ../../ggsql-browser/vendor/ggsql-wasm/
 ```
+
+**Note:** without `wasm-opt` the binary is ~13.6 MB and triggers a runtime
+trap ("memory access out of bounds") on ggsql's `DRAW smooth` path. Always
+run `wasm-opt` on the output.
 
 ### Build and run the app
 
