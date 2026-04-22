@@ -29,7 +29,17 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <div className="title">
-          <h1>ggsql browser</h1>
+          <h1>
+            <a
+              href="https://ggsql.org"
+              target="_blank"
+              rel="noreferrer"
+              className="ggsql-link"
+            >
+              ggsql
+            </a>{" "}
+            browser
+          </h1>
         </div>
         <nav className="tabs">
           <button
